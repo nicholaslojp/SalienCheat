@@ -23,7 +23,7 @@ else
 	// otherwise, read it from disk
 	$Token = trim( file_get_contents( __DIR__ . '/token.txt' ) );
 	$ParsedToken = json_decode( $Token, true );
-	
+
 	if( is_string( $ParsedToken ) )
 	{
 		$Token = $ParsedToken;
@@ -32,7 +32,7 @@ else
 	{
 		$Token = $ParsedToken[ 'token' ];
 	}
-	
+
 	unset( $ParsedToken );
 }
 
@@ -90,7 +90,7 @@ do
 		{
 			Msg( '{green}-- You are currently not representing any clan, so you are now part of SteamDB' );
 			Msg( '{green}-- Make sure to join{yellow} https://steamcommunity.com/groups/steamdb {green}on Steam' );
-	
+
 			SendPOST( 'ITerritoryControlMinigameService/RepresentClan', 'clanid=4777282&access_token=' . $Token );
 		}
 		else if( $Data[ 'response' ][ 'clan_info' ][ 'accountid' ] != 4777282 )
@@ -122,11 +122,11 @@ do
 		{
 			// Leave current game before trying to switch planets (it will report InvalidState otherwise)
 			$SteamThinksPlanet = LeaveCurrentGame( $Token, $BestPlanetAndZone[ 'id' ] );
-		
+
 			if( $BestPlanetAndZone[ 'id' ] !== $SteamThinksPlanet )
 			{
 				SendPOST( 'ITerritoryControlMinigameService/JoinPlanet', 'id=' . $BestPlanetAndZone[ 'id' ] . '&access_token=' . $Token );
-		
+
 				$SteamThinksPlanet = LeaveCurrentGame( $Token );
 			}
 		}
@@ -149,22 +149,17 @@ do
 		{
 			$BestPlanetAndZone = GetBestPlanetAndZone( $ZonePaces, $WaitTime );
 		}
-		while( !$BestPlanetAndZone && sleep( 5 ) === 0 );
+		while( !$BestPlanetAndZone && sleep( 1 ) === 0 );
 
 		continue;
 	}
 
 	$Zone = $Zone[ 'response' ][ 'zone_info' ];
 
-	if( empty( $Zone[ 'response' ][ 'zone_info' ][ 'capture_progress' ] ) )
-	{
-		$Zone[ 'response' ][ 'zone_info' ][ 'capture_progress' ] = 0.0;
-	}
-
 	Msg(
 		'++ Joined Zone {yellow}' . $Zone[ 'zone_position' ] .
 		'{normal} on Planet {green}' . $BestPlanetAndZone[ 'id' ] .
-		'{normal} - Captured: {yellow}' . number_format( $Zone[ 'capture_progress' ] * 100, 2 ) . '%' .
+		'{normal} - Captured: {yellow}' . number_format( empty( $Zone[ 'capture_progress' ] ) ? 0.0 : ( $Zone[ 'capture_progress' ] * 100 ), 2 ) . '%' .
 		'{normal} - Difficulty: {yellow}' . GetNameForDifficulty( $Zone )
 	);
 
@@ -194,7 +189,7 @@ do
 	{
 		$BestPlanetAndZone = GetBestPlanetAndZone( $ZonePaces, $WaitTime );
 	}
-	while( !$BestPlanetAndZone && sleep( 5 ) === 0 );
+	while( !$BestPlanetAndZone && sleep( 1 ) === 0 );
 
 	$LagAdjustedWaitTime -= microtime( true ) - $PlanetCheckTime;
 
@@ -236,20 +231,20 @@ do
 			'{normal} - Current Level: {green}' . $Data[ 'new_level' ] .
 			'{normal} (' . number_format( GetNextLevelProgress( $Data ) * 100, 2 ) . '%)'
 		);
-		
+
 		$OldScore = $Data[ 'new_score' ];
 		$WaitTimeSeconds = $WaitTime / 60;
 		$Time = ( ( $Data[ 'next_level_score' ] - $Data[ 'new_score' ] ) / GetScoreForZone( [ 'difficulty' => $Zone[ 'difficulty' ] ] ) * $WaitTimeSeconds ) + $WaitTimeSeconds;
 		$Hours = floor( $Time / 60 );
 		$Minutes = $Time % 60;
 		$Date = date_create();
-		
+
 		date_add( $Date, date_interval_create_from_date_string( $Hours . " hours + " . $Minutes . " minutes" ) );
-		
+
 		Msg(
 			'>> Next Level: {yellow}' . number_format( $Data[ 'next_level_score' ] ) .
-			'{normal} XP - Remaining: {yellow}' . number_format( $Data[ 'next_level_score' ] - $Data[ 'new_score' ] ) .
-			'{normal} XP - ETA: {green}' . $Hours . 'h ' . $Minutes . 'm (' . date_format( $Date , "jS H:i T" ) . ')'
+			'{normal} - Remaining: {yellow}' . number_format( $Data[ 'next_level_score' ] - $Data[ 'new_score' ] ) .
+			'{normal} - ETA: {green}' . $Hours . 'h ' . $Minutes . 'm (' . date_format( $Date , "jS H:i T" ) . ')'
 		);
 	}
 }
@@ -290,7 +285,12 @@ function GetNextLevelProgress( $Data )
 		9600000, // Level 17
 		10800000, // Level 18
 		12000000, // Level 19
-		13200000, // Level 20
+		14400000, // Level 20
+		16800000, // Level 21
+		19200000, // Level 22
+		21600000, // Level 23
+		24000000, // Level 24
+		26400000, // Level 25
 	];
 
 	$PreviousLevel = $Data[ 'new_level' ] - 1;
@@ -465,8 +465,7 @@ function GetPlanetState( $Planet, &$ZonePaces, $WaitTime )
 	{
 		$CleanZones = $BossZones;
 	}
-
-	if( empty( $CleanZones ) )
+	else if( count( $CleanZones ) < 2 )
 	{
 		return false;
 	}
@@ -482,7 +481,7 @@ function GetPlanetState( $Planet, &$ZonePaces, $WaitTime )
 
 			return $b[ 'zone_position' ] - $a[ 'zone_position' ];
 		}
-		
+
 		return $b[ 'difficulty' ] - $a[ 'difficulty' ];
 	} );
 
@@ -534,7 +533,7 @@ function GetBestPlanetAndZone( &$ZonePaces, $WaitTime )
 		{
 			$Zone = GetPlanetState( $Planet[ 'id' ], $ZonePaces, $WaitTime );
 		}
-		while( $Zone === null && sleep( 5 ) === 0 );
+		while( $Zone === null && sleep( 1 ) === 0 );
 
 		if( $Zone === false )
 		{
@@ -578,6 +577,8 @@ function GetBestPlanetAndZone( &$ZonePaces, $WaitTime )
 
 				return $Planet;
 			}
+
+			$Planet[ 'sort_key' ] += (int)( $Planet[ 'state' ][ 'capture_progress' ] * 100 );
 
 			if( $Planet[ 'low_zones' ] > 0 )
 			{
